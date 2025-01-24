@@ -33,4 +33,4 @@ Code Structure
 Future Enhancements
 	• Implement Proof-of-Work.
 	• Add a feature to dynamically add transaction 
-![image](https://github.com/user-attachments/assets/be62541c-4cea-4761-ac1c-f9f39e509eab)
+
