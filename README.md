@@ -8,7 +8,7 @@ Features
 		○ List of transactions
 		○ Hash of the previous block
 		○ Current block hash
-	• Uses SHA-256 for hashing.
+	• Uses Argon2 for hashing.
 	• Detects tampering by validating the blockchain.
 	• Genesis block creation.
 Prerequisites
