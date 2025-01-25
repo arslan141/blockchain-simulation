@@ -1,55 +1,102 @@
 import hashlib
-import time
+from argon2 import PasswordHasher
 from datetime import datetime
 
 # Define the structure of a Block
 class Block:
-    def __init__(self, index, transactions, previous_hash):
+    def __init__(self, index, transactions, timestamp, previous_hash, nonce=0):
         self.index = index
-        self.timestamp = datetime.utcnow().isoformat()
         self.transactions = transactions
+        self.timestamp = timestamp
         self.previous_hash = previous_hash
-        self.hash = self.calculate_hash()
+        self.nonce = nonce
+        self.hash = None  # Finalized after proof-of-work
 
-    def calculate_hash(self):
-        return self.hash_block(self.index, self.timestamp, self.transactions, self.previous_hash)
+    def calculate_proof_hash(self):
+        """
+        Use SHA-256 for proof-of-work hash calculation.
+        """
+        block_data = (
+            str(self.index) +
+            str(self.transactions) +
+            str(self.timestamp) +
+            str(self.previous_hash) +
+            str(self.nonce)
+        )
+        return hashlib.sha256(block_data.encode()).hexdigest()
 
-    @staticmethod
-    def hash_block(index, timestamp, transactions, previous_hash):
-        block_string = f"{index}{timestamp}{transactions}{previous_hash}"
-        return hashlib.sha256(block_string.encode()).hexdigest()
+    def finalize_hash(self):
+        """
+        Use Argon2 to calculate the final secure hash after proof-of-work.
+        """
+        ph = PasswordHasher()
+        block_data = (
+            str(self.index) +
+            str(self.transactions) +
+            str(self.timestamp) +
+            str(self.previous_hash) +
+            str(self.nonce)
+        )
+        try:
+            return ph.hash(block_data)
+        except Exception as e:
+            return None
 
 # Define the Blockchain class
 class Blockchain:
-    def __init__(self, chain=None):
-        if chain:
-            self.chain = chain
-        else:
-            self.chain = [self.create_genesis_block()]
+    def __init__(self):
+        self.chain = [self.create_genesis_block()]
+        self.difficulty = 4  # Number of leading zeros required in the hash for proof-of-work
 
     def create_genesis_block(self):
         # The first block in the chain
-        return Block(0, "Genesis Block", "0")
+        return Block(0, "Genesis Block", self.get_current_time(), "0")
+
+    def get_current_time(self):
+        # Get the current time in a human-readable format
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def get_latest_block(self):
         return self.chain[-1]
 
     def add_block(self, transactions):
-        previous_block = self.get_latest_block()
-        new_block = Block(len(self.chain), transactions, previous_block.hash)
+        # Create a new block and add it to the chain
+        new_block = Block(
+            index=len(self.chain),
+            transactions=transactions,
+            timestamp=self.get_current_time(),
+            previous_hash=self.get_latest_block().hash
+        )
+        self.proof_of_work(new_block)
+        new_block.hash = new_block.finalize_hash()
         self.chain.append(new_block)
 
+    def proof_of_work(self, block):
+        """
+        Perform proof-of-work by finding a hash with a specific number of leading zeros.
+        """
+        while True:
+            block.nonce += 1
+            proof_hash = block.calculate_proof_hash()
+            if proof_hash.startswith("0" * self.difficulty):
+                break
+
     def is_chain_valid(self):
+        # Validate the blockchain
         for i in range(1, len(self.chain)):
             current_block = self.chain[i]
             previous_block = self.chain[i - 1]
 
-            # Check if the current block's hash is valid
-            if current_block.hash != current_block.calculate_hash():
+            # Validate the proof-of-work hash
+            if not current_block.calculate_proof_hash().startswith("0" * self.difficulty):
+                print(f"Validation failed: Block {current_block.index} proof-of-work mismatch.")
+                return False
+
+            # Validate the final hash
+            if current_block.hash != current_block.finalize_hash():
                 print(f"Validation failed: Block {current_block.index} hash mismatch.")
                 return False
 
-            # Check if the current block's previous hash matches the previous block's hash
             if current_block.previous_hash != previous_block.hash:
                 print(f"Validation failed: Block {current_block.index} previous hash mismatch.")
                 return False
@@ -62,8 +109,8 @@ if __name__ == "__main__":
     my_blockchain = Blockchain()
 
     # Add blocks with dummy transactions
-    my_blockchain.add_block("Transaction 1: arslan pays sid 10 BTC")
-    my_blockchain.add_block("Transaction 2: sid pays quad 5 BTC")
+    my_blockchain.add_block(["Transaction 1: Arslan pays Sid 10 BTC"])
+    my_blockchain.add_block(["Transaction 2: Sid pays Quad 5 BTC"])
 
     # Print the blockchain
     for block in my_blockchain.chain:
@@ -71,7 +118,8 @@ if __name__ == "__main__":
         print(f"  Timestamp: {block.timestamp}")
         print(f"  Transactions: {block.transactions}")
         print(f"  Previous Hash: {block.previous_hash}")
-        print(f"  Hash: {block.hash}\n")
+        print(f"  Hash: {block.hash}")
+        print(f"  Nonce: {block.nonce}\n")
 
     # Validate the blockchain
     print("Is blockchain valid?", my_blockchain.is_chain_valid())
